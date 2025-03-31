@@ -21,6 +21,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from PIL import Image
+
 
 load_dotenv()
 
@@ -92,8 +94,43 @@ def make_http_requests_with_uv(url="https://httpbin.org/get", query_params=None)
         print(f"HTTP request failed: {e}")
         return None
         
-def run_command_with_npx():
-    return "36d3b7f84456ac4ebd9c3bdc16d498b7c1cb90f4c9c1fa51f8367f78d94c2251  -"
+def run_command_with_npx(arguments):
+    filePath, prettier_version, hash_algo, use_npx = (
+        "README.md",
+        "3.4.2",
+        "sha256",
+        True,
+    )
+    filePath, prettier_version, hash_algo, use_npx = (
+        arguments["filePath"],
+        arguments["prettier_version"],
+        arguments["hash_algo"],
+        arguments["use_npx"],
+    )
+    prettier_cmd = (
+        ["npx", "-y", f"prettier@{prettier_version}", filePath]
+        if use_npx
+        else ["prettier", filePath]
+    )
+
+    try:
+        prettier_process = subprocess.run(
+            prettier_cmd, capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        print("Error running Prettier:", e)
+        return None
+
+    formatted_content = prettier_process.stdout.encode()
+
+    try:
+        hasher = hashlib.new(hash_algo)
+        hasher.update(formatted_content)
+        return hasher.hexdigest()
+    except ValueError:
+        print(f"Invalid hash algorithm: {hash_algo}")
+        return None
+
 
 def use_google_sheets(rows=100, cols=100, start=5, step=4, extract_rows=1, extract_cols=10):
     matrix = np.arange(start, start + (rows * cols * step), step).reshape(rows, cols)
@@ -672,7 +709,6 @@ def compress_an_image(image_path=None):
     """
     try:
         import os
-        from PIL import Image
         import io
         import base64
         import numpy as np
@@ -826,7 +862,6 @@ def verify_lossless(base64_image, original_array):
     """Verify the compressed image is visually identical to the original."""
     import io
     import base64
-    from PIL import Image
     import numpy as np
     
     try:
@@ -908,7 +943,6 @@ def use_an_image_library_in_google_colab(image_path=None):
         str: The count of pixels with lightness > 0.683
     """
     import numpy as np
-    from PIL import Image
     import colorsys
     from utils.file_process import managed_file_upload
     
@@ -3060,7 +3094,6 @@ def reconstruct_an_image(scrambled_image_path=None):
     import os
     import io
     import base64
-    from PIL import Image
     from utils.file_process import managed_file_upload
     
     try:
