@@ -1,7 +1,17 @@
 from multiprocessing import process
 import subprocess
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Depends, Query, Request
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    UploadFile,
+    HTTPException,
+    Depends,
+    Query,
+    Request,
+)
 from fastapi.responses import JSONResponse
+import uvicorn
 import os
 import json
 from typing import Optional
@@ -22,14 +32,16 @@ app = FastAPI()
 def fun():
     return "works"
 
+
 SECRET_PASSWORD = os.getenv("SECRET_PASSWORD")
 
+
 # Modify the redeploy endpoint
-@app.get('/redeploy')
+@app.get("/redeploy")
 def redeploy(password: str = Query(None)):
     if password != SECRET_PASSWORD:
         raise HTTPException(status_code=403, detail="Unauthorized")
-    
+
     # Replace shell script execution with a message
     return {"message": "Redeployment not available in cloud environment"}
 
@@ -44,8 +56,7 @@ async def save_upload_file(upload_file: UploadFile) -> str:
 
 @app.post("/")
 async def process_file(
-    question: str = Form(...),
-    file: Optional[UploadFile] = File(None)
+    question: str = Form(...), file: Optional[UploadFile] = File(None)
 ):
     file_names = []
     tmp_dir_local = tmp_dir  # Initialize tmp_dir_local with the global tmp_dir value
@@ -54,11 +65,11 @@ async def process_file(
     matched_function = find_similar_question(
         question
     )  # Function to compare using cosine similarity
-    
+
     # Extract just the function name from the tuple
     function_name = matched_function[0]
     print("-----------Matched Function------------\n", function_name)
-    
+
     if file:
         # Save and process the uploaded file (ZIP or image)
         file_path = await save_upload_file(file)
@@ -70,7 +81,9 @@ async def process_file(
     # Extract parameters using the matched function
     parameters = extract_parameters(
         str(question),
-        function_definitions_llm=function_definitions_objects_llm.get(function_name, {}),
+        function_definitions_llm=function_definitions_objects_llm.get(
+            function_name, {}
+        ),
     )  # Function to call OpenAI API and extract parameters
 
     print("-----------parameters------------\n", parameters)
@@ -78,8 +91,8 @@ async def process_file(
     # Validate if parameters were extracted successfully
     if not parameters or "arguments" not in parameters:
         raise HTTPException(
-            status_code=400, 
-            detail="Failed to extract parameters for the given question"
+            status_code=400,
+            detail="Failed to extract parameters for the given question",
         )
 
     solution_function = functions_dict.get(
@@ -91,8 +104,7 @@ async def process_file(
         arguments = json.loads(parameters["arguments"])
     except (TypeError, json.JSONDecodeError) as e:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid arguments format: {str(e)}"
+            status_code=400, detail=f"Invalid arguments format: {str(e)}"
         )
 
     print("-----------arguments------------\n", arguments)
@@ -109,8 +121,7 @@ async def process_file(
         answer = solution_function(**arguments)
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
-            detail=f"Error executing function: {str(e)}"
+            status_code=500, detail=f"Error executing function: {str(e)}"
         )
 
     # Return the answer in JSON format
@@ -118,5 +129,7 @@ async def process_file(
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("api.app:app", host="0.0.0.0", port=8000, reload=True)
+    try:
+        uvicorn.run("api.app:app", host="0.0.0.0", port=8000, reload=True)
+    except Exception as e:
+        print(f"Error starting the server: {str(e)}")
